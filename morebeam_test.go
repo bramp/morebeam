@@ -15,19 +15,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Example of using the csvio package.
-package main
+package morebeam_test
 
 import (
 	"context"
 	"flag"
 	"reflect"
 
+	"bramp.net/morebeam"
 	"bramp.net/morebeam/csvio"
-
 	"github.com/apache/beam/sdks/go/pkg/beam"
-	"github.com/apache/beam/sdks/go/pkg/beam/log"
-	"github.com/apache/beam/sdks/go/pkg/beam/transforms/stats"
 	"github.com/apache/beam/sdks/go/pkg/beam/x/beamx"
 	"github.com/apache/beam/sdks/go/pkg/beam/x/debug"
 )
@@ -40,38 +37,26 @@ type Painting struct {
 	NotUsed string `csv:"-"` // Ignored field
 }
 
-var (
-	input = flag.String("input", "paintings.csv", "Input CSV file")
-)
-
-func extractFn(painting Painting) string {
-	return painting.Artist
-}
-
-func main() {
+func Example() {
 	flag.Parse()
 	beam.Init()
 
-	ctx := context.Background()
+	p, s := beam.NewPipelineWithRoot()
 
-	if *input == "" {
-		log.Fatal(ctx, "No input provided")
-	}
+	// Read the CSV file as a PCollection<Painting>.
+	paintings := csvio.Read(s, "paintings.csv", reflect.TypeOf(Painting{}))
 
-	p := beam.NewPipeline()
-	s := p.Root()
+	// Reshuffle the CSV output to improve parallelism.
+	paintings = morebeam.Reshuffle(s, paintings)
 
-	// Read the CSV file.
-	paintings := csvio.Read(s, *input, reflect.TypeOf(Painting{}))
+	// Return a new PCollection<KV<string, Painting>> where the key is the artist.
+	paintingsByArtist := morebeam.AddKey(s, func(painting Painting) string {
+		return painting.Artist
+	}, paintings)
 
-	// Extract just the artist's name.
-	artists := beam.ParDo(s, extractFn, paintings)
+	debug.Print(s, paintingsByArtist)
 
-	// Count the number of paintings by each artist.
-	counts := stats.Count(s, artists)
-	debug.Print(s, counts)
+	beamx.Run(context.Background(), p)
 
-	if err := beamx.Run(ctx, p); err != nil {
-		log.Fatalf(ctx, "Failed to execute job: %v", err)
-	}
+	// Output:
 }

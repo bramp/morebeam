@@ -11,14 +11,43 @@ Go package which provides additional functions useful when building [Apache Beam
 Install:
 
 ```bash
-go get github.com/google/hilbert
+go get bramp.net/morebeam/...
 ```
 
 Example:
 
 ```go
-import "github.com/google/hilbert"
-    
+import (
+    "bramp.net/morebeam"
+    "bramp.net/morebeam/csvio"
+)
+
+// Painting represents a single record in the csv file.
+type Painting struct {
+    Artist  string `csv:"artist"`
+    Title   string `csv:"title"`
+    Year    int    `csv:"year"`
+    NotUsed string `csv:"-"` // Ignored field
+}
+
+func Example() {
+    flag.Parse()
+    beam.Init()
+
+    p, s := beam.NewPipelineWithRoot()
+
+    // Read the CSV file as a PCollection<Painting>.
+    paintings := csvio.Read(s, "paintings.csv", reflect.TypeOf(Painting{}))
+
+    // Return a new PCollection<KV<string, Painting>> where the key is the artist.
+    paintingsByArtist := morebeam.AddKey(s, func(painting Painting) string {
+        return painting.Artist
+    }, paintings)
+
+    debug.Print(s, paintingsByArtist)
+
+    beamx.Run(context.Background(), p)
+}
 ```
 
 ## Licence (Apache 2)

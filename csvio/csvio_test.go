@@ -15,33 +15,53 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package morebeam_test
+// Example of using the csvio package.
+package csvio_test
 
 import (
 	"context"
+	"reflect"
 
-	"bramp.net/morebeam"
+	"bramp.net/morebeam/csvio"
+
 	"github.com/apache/beam/sdks/go/pkg/beam"
+	"github.com/apache/beam/sdks/go/pkg/beam/log"
+	"github.com/apache/beam/sdks/go/pkg/beam/transforms/stats"
 	"github.com/apache/beam/sdks/go/pkg/beam/x/beamx"
 	"github.com/apache/beam/sdks/go/pkg/beam/x/debug"
 )
 
-func AddKeyExample() {
+// Painting represents a single record in the csv file.
+type Painting struct {
+	Artist  string `csv:"artist"`
+	Title   string `csv:"title"`
+	Year    int    `csv:"year"`
+	NotUsed string `csv:"-"` // Ignored field
+}
+
+func extractFn(painting Painting) string {
+	return painting.Artist
+}
+
+func Example() {
 	beam.Init()
+
 	p, s := beam.NewPipelineWithRoot()
 
-	values := beam.CreateList(s, []string{"andrew", "bob", "china"})
+	// Read the CSV file.
+	paintings := csvio.Read(s, "testdata/paintings.csv", reflect.TypeOf(Painting{}))
 
-	// PCollection<string> -> PCollection<KV<int, string>>
-	keyvalues := morebeam.AddKey(s, func(value string) int {
-		return len(value)
-	}, values)
+	// Extract just the artist's name.
+	artists := beam.ParDo(s, extractFn, paintings)
 
-	debug.Print(s, keyvalues)
-	beamx.Run(context.Background(), p)
+	// Count the number of paintings by each artist.
+	counts := stats.Count(s, artists)
+	debug.Print(s, counts)
+
+	ctx := context.Background()
+	if err := beamx.Run(ctx, p); err != nil {
+		log.Fatalf(ctx, "Failed to execute job: %v", err)
+	}
 
 	// Output:
-	// 6, "andrew"
-	// 3, "bob"
-	// 5, "china"
 }

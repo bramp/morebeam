@@ -25,9 +25,9 @@ import (
 
 // Reshuffle takes a PCollection<A> and shuffles the data to help increase parallelism.
 func Reshuffle(s beam.Scope, col beam.PCollection) beam.PCollection {
-	// The shuffle groups by a random key, and then emits the resulting values.
-
 	s = s.Scope("Reshuffle")
+
+	// The shuffle groups by a random key, and then emits the resulting values.
 	col = beam.ParDo(s, func(x beam.X) (int, beam.X) {
 		return rand.Int(), x
 	}, col)
